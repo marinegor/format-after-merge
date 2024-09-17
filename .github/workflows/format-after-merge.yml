@@ -50,16 +50,36 @@ jobs:
           branch: "auto-format-${{ github.sha }}"
           base: "main"
 
-      - name: Comment on original PR
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Apply formatting to changed files"
+          title: "Format changed files"
+          body: |
+            This PR applies formatting to the files changed in the previous merge.
+            - Ran `ruff` on changed Python files
+            - Updated `.git-ignore-revs`
+          branch: "auto-format-${{ github.sha }}"
+          base: "main"
+
+      - name: Create Issue about Formatting PR
+        if: always()
         uses: actions/github-script@v6
-        if: failure()
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            const prNumber = '${{ steps.cpr.outputs.pull-request-number }}';
+            const prCreated = '${{ steps.cpr.outcome }}' === 'success';
+            const issueBody = prCreated
+              ? `A formatting PR #${prNumber} has been created to apply formatting to recently changed files.`
+              : 'An attempt to create a formatting PR was made, but it failed. You may want to manually create a PR to format recently changed files.';
+            
+            github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Would you like to add a PR that adds formatting to the files you changed? A formatting PR has been created.'
-            })
+              title: 'Formatting PR Notification',
+              body: issueBody
+            });
 
