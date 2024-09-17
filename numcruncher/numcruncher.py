@@ -1,9 +1,5 @@
 import click
 
-
-def summator(nums):
-    return sum(map(int, nums))
-
 @click.command()
 @click.argument('nums', nargs=-1)
 @click.option('--action', default='sum', help='Which action to perform (mul or sum)')
