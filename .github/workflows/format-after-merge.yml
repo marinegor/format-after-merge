@@ -1,0 +1,65 @@
+name: Format After Merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          echo "::set-output name=files::$(git diff --name-only HEAD^ HEAD | grep '\.py$' | xargs)"
+
+      - name: Run ruff
+        run: |
+          ruff check --fix ${{ steps.changed-files.outputs.files }}
+
+      - name: Update .git-ignore-revs
+        run: |
+          echo $(git rev-parse HEAD) >> .git-ignore-revs
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Apply formatting to changed files"
+          title: "Format changed files"
+          body: |
+            This PR applies formatting to the files changed in the previous merge.
+            - Ran `ruff` on changed Python files
+            - Updated `.git-ignore-revs`
+          branch: "auto-format-${{ github.sha }}"
+          base: "main"
+
+      - name: Comment on original PR
+        uses: actions/github-script@v6
+        if: failure()
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Would you like to add a PR that adds formatting to the files you changed? A formatting PR has been created.'
+            })
+
